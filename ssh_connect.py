@@ -57,7 +57,7 @@ import paramiko  # noqa: E402
 import pyte  # noqa: E402
 
 APP_NAME = "SSH Connect"
-APP_VERSION = "1.8.1"   # то же число попадает в имя установщика (build_installer.bat)
+APP_VERSION = "1.8.2"   # то же число попадает в имя установщика (build_installer.bat)
 
 # --------------------------------------------------------------------------
 # Оформление

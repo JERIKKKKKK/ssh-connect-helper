@@ -1,0 +1,78 @@
+name: release
+# Выпуск: поменяйте APP_VERSION в ssh_connect.py, закоммитьте, затем
+#   git tag v1.8.0 && git push origin v1.8.0
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          VER=$(python3 get_version.py)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$VER" ]; then
+            echo "Тег ${GITHUB_REF_NAME} не совпадает с APP_VERSION=$VER"; exit 1
+          fi
+
+  windows:
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Build exe + installer
+        shell: cmd
+        run: call build_installer.bat
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/SSH_Connect.exe
+            dist/SSH_Connect_Setup_*.exe
+
+  linux:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build deb and rpm
+        run: |
+          sudo apt-get update && sudo apt-get install -y rpm
+          chmod +x build_deb.sh build_rpm.sh
+          ./build_deb.sh
+          ./build_rpm.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            dist/*.deb
+            dist/*.rpm
+
+  publish:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Checksums
+        run: cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true
